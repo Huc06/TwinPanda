@@ -1,4 +1,4 @@
-# AR + NFT RWA Demo
+# AR + NFT RWA + Tiệm cầm độ Việt Nam
 
 Một ứng dụng demo kết hợp Augmented Reality (AR) và Non-Fungible Token (NFT) cho Real World Assets (RWA) trên U2U testnet.
 
