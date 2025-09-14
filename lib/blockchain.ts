@@ -104,7 +104,7 @@ export class BlockchainService {
         await this.switchToU2UTestnet()
       }
 
-      if (CONTRACT_ADDRESS === "0x..." || !CONTRACT_ADDRESS) {
+      if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === "0x...") {
         console.warn("Contract address not set. Please deploy the contract and update CONTRACT_ADDRESS.")
       }
 
@@ -163,7 +163,7 @@ export class BlockchainService {
       throw new Error("Wallet not connected")
     }
 
-    if (CONTRACT_ADDRESS === "0x..." || !CONTRACT_ADDRESS) {
+    if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === "0x...") {
       throw new Error("Contract not deployed. Please deploy the contract first.")
     }
 
@@ -297,7 +297,7 @@ export class BlockchainService {
   }
 
   async isContractDeployed(): Promise<boolean> {
-    if (!this.provider || CONTRACT_ADDRESS === "0x..." || !CONTRACT_ADDRESS) {
+    if (!this.provider || !CONTRACT_ADDRESS || CONTRACT_ADDRESS === "0x...") {
       return false
     }
 
