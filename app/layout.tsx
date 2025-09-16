@@ -4,11 +4,12 @@ import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { Providers } from '@/components/providers'
+import { AuthProvider } from '@/components/auth/auth-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'AR NFT RWA - Pawn Shop Platform',
+  description: 'Decentralized pawn shop platform with AR asset scanning and NFT collateralization',
   generator: 'v0.app',
 }
 
@@ -21,9 +22,11 @@ export default function RootLayout({
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="font-sans">
         <Providers>
-          {children}
-          <Toaster />
-          <Analytics />
+          <AuthProvider>
+            {children}
+            <Toaster />
+            <Analytics />
+          </AuthProvider>
         </Providers>
       </body>
     </html>
