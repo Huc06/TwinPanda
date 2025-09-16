@@ -2,8 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { ARCanvas } from "@/components/ar-canvas"
-import { ARScene, WatchModel } from "@/components/ar-scene"
+import { ARScene, WatchModel, PhotoModel } from "@/components/ar-scene"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Camera, CheckCircle, AlertCircle, Scan, Zap, ExternalLink } from "lucide-react"
@@ -54,17 +57,29 @@ export default function ARNFTDemo() {
     hash,
   })
 
+  // Dynamic item fields
+  const [itemType, setItemType] = useState("")
+  const [itemName, setItemName] = useState("")
+  const [serialNumber, setSerialNumber] = useState("")
+  const [imageUrl, setImageUrl] = useState("")
+  const [showModel, setShowModel] = useState(false)
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('environment')
+  const [isCapturing, setIsCapturing] = useState(false)
+  const [autoCaptured, setAutoCaptured] = useState(false)
+  const [showFraming, setShowFraming] = useState(false)
+  const framingVideoRef = useRef<HTMLVideoElement>(null)
+
   const startCamera = async () => {
     try {
       setCameraError("")
       setIsScanning(true)
 
-      // Try to get back camera first, fallback to any available camera
+      // Try to get requested camera facing first, fallback to any available camera
       let stream: MediaStream
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: "environment" },
+            facingMode: { ideal: cameraFacing },
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -90,7 +105,7 @@ export default function ARNFTDemo() {
 
       toast({
         title: "Camera Started",
-        description: "AR mode activated. Point camera at a watch to detect RWA.",
+        description: "AR mode activated. Point camera at the item to detect.",
       })
     } catch (error: any) {
       console.error("Error accessing camera:", error)
@@ -121,6 +136,75 @@ export default function ARNFTDemo() {
     return () => clearInterval(interval)
   }, [])
 
+  // Auto-capture when detection is high and we haven't captured yet
+  useEffect(() => {
+    const shouldAutoCapture = isARActive && detectionConfidence >= 0.8 && !isCapturing && !imageUrl && !autoCaptured
+    if (shouldAutoCapture && videoRef.current) {
+      try {
+        setIsCapturing(true)
+        const video = videoRef.current
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth || 1280
+        canvas.height = video.videoHeight || 720
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+          setImageUrl(dataUrl)
+          setAutoCaptured(true)
+          setShowModel(true)
+          toast({ title: 'Đã tự động chụp ảnh', description: 'Độ tin cậy cao, đã tạo mô hình 3D từ ảnh' })
+        }
+      } finally {
+        setIsCapturing(false)
+      }
+    }
+  }, [isARActive, detectionConfidence, isCapturing, imageUrl, autoCaptured, toast])
+
+  // When opening framing screen, bind the same MediaStream to a dedicated video element
+  useEffect(() => {
+    if (showFraming && framingVideoRef.current && cameraStream) {
+      framingVideoRef.current.srcObject = cameraStream
+    }
+  }, [showFraming, cameraStream])
+
+  // Switch camera inside framing overlay
+  const switchFramingCamera = async () => {
+    try {
+      const nextFacing = cameraFacing === 'environment' ? 'user' : 'environment'
+      // Stop current tracks
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((t) => t.stop())
+      }
+      // Request new stream
+      let newStream: MediaStream
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { exact: nextFacing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        })
+      } catch (_e) {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: nextFacing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        })
+      }
+      setCameraFacing(nextFacing)
+      setCameraStream(newStream)
+      if (videoRef.current) videoRef.current.srcObject = newStream
+      if (framingVideoRef.current) framingVideoRef.current.srcObject = newStream
+      toast({ title: 'Đã đổi camera', description: nextFacing === 'environment' ? 'Đang dùng camera sau' : 'Đang dùng camera trước' })
+    } catch (err: any) {
+      toast({ title: 'Không đổi được camera', description: err?.message || 'Vui lòng kiểm tra quyền camera', variant: 'destructive' })
+    }
+  }
+
   // Stop camera
   const stopCamera = () => {
     if (cameraStream) {
@@ -145,7 +229,7 @@ export default function ARNFTDemo() {
     if (detectionConfidence < 0.7) {
       toast({
         title: "Detection Required",
-        description: "Please ensure the watch is clearly detected (>70% confidence)",
+        description: "Please ensure the item is clearly detected (>70% confidence)",
         variant: "destructive",
       })
       return
@@ -174,14 +258,24 @@ export default function ARNFTDemo() {
       console.log("Chain ID:", chainId)
       console.log("Contract address:", CONTRACT_ADDRESS)
 
+      // Validate required fields
+      if (!itemName.trim() || !serialNumber.trim()) {
+        toast({
+          title: "Missing Fields",
+          description: "Item name and serial number are required",
+          variant: "destructive",
+        })
+        return
+      }
+
       // Create metadata
       const metadata = {
-        name: "Luxury Watch #LW-2024-001",
-        description: "Real World Asset NFT for Luxury Watch",
-        image: "/luxury-watch-with-serial-number-lw-2024-001.jpg",
+        name: `${itemName} #${serialNumber}`,
+        description: `Real World Asset NFT for ${itemType}`,
+        image: imageUrl,
         attributes: [
-          { trait_type: "Item Type", value: "Luxury Watch" },
-          { trait_type: "Serial Number", value: "LW-2024-001" },
+          { trait_type: "Item Type", value: itemType },
+          { trait_type: "Serial Number", value: serialNumber },
           { trait_type: "Mint Date", value: new Date().toISOString() },
           { trait_type: "Blockchain", value: "U2U Testnet" },
         ],
@@ -200,7 +294,7 @@ export default function ARNFTDemo() {
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
         functionName: 'mintNFT',
-        args: [address, metadataURI, "Luxury Watch", "LW-2024-001"],
+        args: [address, metadataURI, itemName, serialNumber],
       })
 
     } catch (error: any) {
@@ -298,16 +392,25 @@ export default function ARNFTDemo() {
                 {/* 3D AR Overlay */}
                 <div className="absolute inset-0">
                   <ARCanvas camera={{ position: [0, 0, 5], fov: 50 }}>
-                    {/* 3D Watch Model */}
-                    <WatchModel isDetected={isARActive && detectionConfidence > 0.5} />
+                    {/* Prefer PhotoModel if we have a captured image; fallback to placeholder model */}
+                    {imageUrl ? (
+                      <PhotoModel imageUrl={imageUrl} isVisible={isARActive && showModel} />
+                    ) : (
+                      showModel && <WatchModel isDetected={isARActive && detectionConfidence > 0.5} />
+                    )}
 
                     {/* AR Overlay */}
-                    <ARScene isVisible={isARActive} detectionConfidence={detectionConfidence} />
+                    <ARScene
+                      isVisible={isARActive}
+                      detectionConfidence={detectionConfidence}
+                      itemName={itemName}
+                      serialNumber={serialNumber}
+                    />
                   </ARCanvas>
                 </div>
 
                 {/* Camera controls */}
-                <div className="absolute bottom-4 left-4 right-4 flex justify-center">
+                <div className="absolute bottom-4 left-4 right-4 flex flex-col items-center gap-2">
                   {!isARActive ? (
                     <Button onClick={startCamera} className="bg-green-600 hover:bg-green-700" disabled={isScanning}>
                       {isScanning ? (
@@ -323,9 +426,19 @@ export default function ARNFTDemo() {
                       )}
                     </Button>
                   ) : (
-                    <Button onClick={stopCamera} variant="destructive">
-                      Stop Camera
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <Button onClick={stopCamera} variant="destructive">
+                        Stop Camera
+                      </Button>
+                      <div className="flex items-center gap-2 bg-slate-800/70 px-3 py-1 rounded">
+                        <Switch id="showModel" checked={showModel} onCheckedChange={setShowModel} />
+                        <Label htmlFor="showModel" className="text-slate-200 text-sm">Show 3D Model</Label>
+                      </div>
+                      <Button onClick={() => setShowFraming(true)} className="bg-slate-700 hover:bg-slate-600">
+                        Mở màn hình canh chụp
+                      </Button>
+                      
+                    </div>
                   )}
                 </div>
               </div>
@@ -347,7 +460,7 @@ export default function ARNFTDemo() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-5 h-5 text-green-500" />
-                      <span className="text-green-400">Luxury Watch Detected</span>
+                      <span className="text-green-400">Item Detected</span>
                     </div>
 
                     {/* Confidence meter */}
@@ -366,10 +479,10 @@ export default function ARNFTDemo() {
 
                     <div className="text-sm text-slate-300 space-y-1">
                       <p>
-                        <strong>Item:</strong> Luxury Watch
+                        <strong>Item:</strong> {itemName || "(chưa nhập)"}
                       </p>
                       <p>
-                        <strong>Serial:</strong> LW-2024-001
+                        <strong>Serial:</strong> {serialNumber || "(chưa nhập)"}
                       </p>
                       <p>
                         <strong>Status:</strong> {detectionConfidence > 0.7 ? "Ready to mint" : "Scanning..."}
@@ -385,7 +498,7 @@ export default function ARNFTDemo() {
               </CardContent>
             </Card>
 
-            {/* Mint NFT */}
+            {/* Item Details & Mint NFT */}
             <Card className="bg-slate-800/50 border-slate-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
@@ -394,10 +507,45 @@ export default function ARNFTDemo() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Item form */}
+                <div className="space-y-3 mb-4">
+                  {/* Captured preview */}
+                  {imageUrl && imageUrl.startsWith('data:image') && (
+                    <div className="rounded-lg overflow-hidden border border-slate-700">
+                      <img src={imageUrl} alt="Captured" className="w-full h-40 object-cover" />
+                      <div className="px-2 py-1 bg-slate-800/70 text-xs text-slate-200 flex items-center gap-2">
+                        <Badge>Captured</Badge>
+                        <span>Ảnh sẽ được dùng làm metadata</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="itemType" className="text-slate-300">Item Type</Label>
+                      <Input id="itemType" value={itemType} onChange={(e) => setItemType(e.target.value)} placeholder="e.g., Luxury Watch" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="itemName" className="text-slate-300">Item Name</Label>
+                      <Input id="itemName" value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g., Rolex Submariner" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="serial" className="text-slate-300">Serial Number</Label>
+                      <Input id="serial" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="e.g., LW-2024-001" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="imageUrl" className="text-slate-300">Image URL</Label>
+                      <Input id="imageUrl" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="/image.jpg or https://..." />
+                    </div>
+                  </div>
+                </div>
+
                 <Button
                   onClick={mintNFT}
                   disabled={
-                    !isARActive || !isConnected || isPending || isConfirming || detectionConfidence < 0.7 || chainId !== 2484
+                    !isARActive || !isConnected || isPending || isConfirming || detectionConfidence < 0.7 || chainId !== 2484 || !itemName.trim() || !serialNumber.trim()
                   }
                   className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
                   size="lg"
@@ -422,6 +570,9 @@ export default function ARNFTDemo() {
                 )}
                 {isConnected && chainId !== 2484 && (
                   <p className="text-sm text-red-400 mt-2">⚠️ Switch to U2U Testnet to mint</p>
+                )}
+                {(isConnected && isARActive && detectionConfidence >= 0.7 && (!itemName.trim() || !serialNumber.trim())) && (
+                  <p className="text-sm text-yellow-400 mt-2">⚠️ Enter item name and serial number</p>
                 )}
 
                 {mintStatus === "success" && (
@@ -463,6 +614,72 @@ export default function ARNFTDemo() {
             </Card>
           </div>
         </div>
+
+        {/* Framing full-screen overlay */}
+        {showFraming && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+              <h2 className="text-white text-lg font-medium">Canh khung & chụp ảnh</h2>
+              <div className="flex items-center gap-2">
+                <Button onClick={switchFramingCamera} className="bg-indigo-600 hover:bg-indigo-700">Đổi camera ({cameraFacing === 'environment' ? 'sau' : 'trước'})</Button>
+                <Button variant="ghost" onClick={() => setShowFraming(false)} className="text-white">Đóng</Button>
+              </div>
+            </div>
+            <div className="flex-1 relative">
+              {/* Large live preview */}
+              <video
+                ref={framingVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute inset-0 w-full h-full object-contain"
+              />
+
+              {/* Grid guidelines (rule of thirds) */}
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="border-[0.5px] border-white/20" />
+                  ))}
+                </div>
+                {/* Center reticle */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border-2 border-emerald-400/70 shadow-[0_0_20px_rgba(16,185,129,0.5)]" />
+              </div>
+
+              {/* Bottom controls */}
+              <div className="absolute left-0 right-0 bottom-0 p-4 flex items-center justify-center gap-3 bg-gradient-to-t from-black/60 to-transparent">
+                <Button
+                  size="lg"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  disabled={isCapturing}
+                  onClick={() => {
+                    if (!framingVideoRef.current) return
+                    try {
+                      setIsCapturing(true)
+                      const video = framingVideoRef.current
+                      const canvas = document.createElement('canvas')
+                      canvas.width = video.videoWidth || 1280
+                      canvas.height = video.videoHeight || 720
+                      const ctx = canvas.getContext('2d')
+                      if (ctx) {
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+                        setImageUrl(dataUrl)
+                        setShowModel(true)
+                        setAutoCaptured(true)
+                        toast({ title: 'Đã chụp', description: 'Ảnh đã được lưu để mint và hiển thị mô hình 3D' })
+                      }
+                    } finally {
+                      setIsCapturing(false)
+                    }
+                  }}
+                >
+                  {isCapturing ? 'Đang chụp...' : 'Chụp ảnh'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
