@@ -13,6 +13,7 @@ import { Camera, CheckCircle, AlertCircle, Scan, Zap, ExternalLink } from "lucid
 import { useToast } from "@/hooks/use-toast"
 import { WalletConnectRainbow } from "@/components/wallet-connect-rainbow"
 import { useAccount, useChainId, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import jsQR from 'jsqr'
 
 
 
@@ -68,6 +69,46 @@ export default function ARNFTDemo() {
   const [autoCaptured, setAutoCaptured] = useState(false)
   const [showFraming, setShowFraming] = useState(false)
   const framingVideoRef = useRef<HTMLVideoElement>(null)
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [qrContent, setQrContent] = useState<string>("")
+  const [qrScanning, setQrScanning] = useState<boolean>(false)
+  const [qrMode, setQrMode] = useState<boolean>(true)
+  const [qrJustDetectedTs, setQrJustDetectedTs] = useState<number>(0)
+  const [qrEnhance, setQrEnhance] = useState<boolean>(true)
+
+  // Robust QR parsing helper: supports JSON, key=value, key: value, flexible spacing
+  const parseQrContent = useCallback((raw: string): Record<string, string> | null => {
+    if (!raw) return null
+    const trimmed = raw.trim()
+    // Try JSON first
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const obj = JSON.parse(trimmed)
+        return obj
+      } catch {
+        // fallthrough to regex parsing
+      }
+    }
+    // Normalize separators to '='
+    const normalized = trimmed.replace(/:/g, '=')
+    const result: Record<string, string> = {}
+    // Match pairs like key=value with value up to next key= or end
+    const pairRegex = /(\w+)\s*=\s*([\s\S]*?)(?=(?:\s+\w+\s*=)|[;,\n\r]|$)/g
+    let match: RegExpExecArray | null
+    while ((match = pairRegex.exec(normalized)) !== null) {
+      const key = match[1]?.trim().toLowerCase()
+      const value = match[2]?.trim().replace(/[;,]$/, '')
+      if (key) result[key] = value
+    }
+    // If nothing matched, try simple split by common delimiters as fallback
+    if (Object.keys(result).length === 0) {
+      normalized.split(/;|\n|\r|,/).forEach((seg) => {
+        const [k, ...rest] = seg.split('=')
+        if (k && rest.length) result[k.trim().toLowerCase()] = rest.join('=').trim()
+      })
+    }
+    return Object.keys(result).length ? result : null
+  }, [])
 
   const startCamera = async () => {
     try {
@@ -80,8 +121,8 @@ export default function ARNFTDemo() {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: cameraFacing },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         })
       } catch (error) {
@@ -168,6 +209,101 @@ export default function ARNFTDemo() {
     }
   }, [showFraming, cameraStream])
 
+  // QR scanning loop inside framing overlay
+  useEffect(() => {
+    let rafId = 0
+    const scan = () => {
+      if (!showFraming || !qrMode) return
+      const video = framingVideoRef.current
+      const canvas = qrCanvasRef.current
+      if (!video || !canvas || video.readyState !== 4) {
+        rafId = requestAnimationFrame(scan)
+        return
+      }
+      const width = video.videoWidth
+      const height = video.videoHeight
+      if (width === 0 || height === 0) {
+        rafId = requestAnimationFrame(scan)
+        return
+      }
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        rafId = requestAnimationFrame(scan)
+        return
+      }
+      ctx.drawImage(video, 0, 0, width, height)
+      // Optional enhancement to improve QR detection
+      if (qrEnhance) {
+        const img = ctx.getImageData(0, 0, width, height)
+        const d = img.data
+        // Grayscale + adaptive threshold (simple)
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i], g = d[i + 1], b = d[i + 2]
+          const gray = (r * 299 + g * 587 + b * 114) / 1000
+          const thr = 128
+          const v = gray > thr ? 255 : 0
+          d[i] = d[i + 1] = d[i + 2] = v
+        }
+        ctx.putImageData(img, 0, 0)
+      }
+      const imageData = ctx.getImageData(0, 0, width, height)
+      const code = jsQR(imageData.data, width, height)
+      if (code) {
+        if (code.data !== qrContent) {
+          setQrContent(code.data)
+          setQrJustDetectedTs(Date.now())
+          // Haptic feedback if supported
+          try {
+            if (navigator.vibrate) navigator.vibrate([20, 30, 20])
+          } catch {}
+        }
+        // Optional: draw bounding box
+        ctx.lineWidth = 4
+        ctx.strokeStyle = '#10b981'
+        const loc = code.location
+        if (loc) {
+          ctx.beginPath()
+          ctx.moveTo(loc.topLeftCorner.x, loc.topLeftCorner.y)
+          ctx.lineTo(loc.topRightCorner.x, loc.topRightCorner.y)
+          ctx.lineTo(loc.bottomRightCorner.x, loc.bottomRightCorner.y)
+          ctx.lineTo(loc.bottomLeftCorner.x, loc.bottomLeftCorner.y)
+          ctx.closePath()
+          ctx.stroke()
+        }
+      }
+      rafId = requestAnimationFrame(scan)
+    }
+    if (showFraming && qrMode) {
+      setQrScanning(true)
+      rafId = requestAnimationFrame(scan)
+    }
+    return () => {
+      setQrScanning(false)
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [showFraming, qrMode])
+
+  // Auto-fill form from QR content as soon as detected (always propagate outward)
+  useEffect(() => {
+    if (!qrContent) return
+    try {
+      const parsed = parseQrContent(qrContent)
+      if (parsed) {
+        const nextName = (parsed.item || parsed.name) as string | undefined
+        const nextType = (parsed.type) as string | undefined
+        const nextSerial = (parsed.serial || parsed.sn) as string | undefined
+        if (nextName !== undefined) setItemName(nextName)
+        if (nextType !== undefined) setItemType(nextType)
+        if (nextSerial !== undefined) setSerialNumber(nextSerial)
+        toast({ title: 'Đã đọc QR', description: 'Thông tin đã được điền vào form' })
+      }
+    } catch {}
+    // Only notify once per new content
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrContent])
+
   // Switch camera inside framing overlay
   const switchFramingCamera = async () => {
     try {
@@ -182,16 +318,16 @@ export default function ARNFTDemo() {
         newStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { exact: nextFacing },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         })
       } catch (_e) {
         newStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: nextFacing },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         })
       }
@@ -621,6 +757,10 @@ export default function ARNFTDemo() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
               <h2 className="text-white text-lg font-medium">Canh khung & chụp ảnh</h2>
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-slate-800/70 px-3 py-1 rounded">
+                  <Switch id="qrMode" checked={qrMode} onCheckedChange={setQrMode} />
+                  <Label htmlFor="qrMode" className="text-slate-200 text-sm">Chế độ quét QR</Label>
+                </div>
                 <Button onClick={switchFramingCamera} className="bg-indigo-600 hover:bg-indigo-700">Đổi camera ({cameraFacing === 'environment' ? 'sau' : 'trước'})</Button>
                 <Button variant="ghost" onClick={() => setShowFraming(false)} className="text-white">Đóng</Button>
               </div>
@@ -634,6 +774,8 @@ export default function ARNFTDemo() {
                 muted
                 className="absolute inset-0 w-full h-full object-contain"
               />
+              {/* Hidden canvas for QR processing */}
+              <canvas ref={qrCanvasRef} className="hidden" />
 
               {/* Grid guidelines (rule of thirds) */}
               <div className="pointer-events-none absolute inset-0">
@@ -646,8 +788,25 @@ export default function ARNFTDemo() {
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border-2 border-emerald-400/70 shadow-[0_0_20px_rgba(16,185,129,0.5)]" />
               </div>
 
-              {/* Bottom controls */}
-              <div className="absolute left-0 right-0 bottom-0 p-4 flex items-center justify-center gap-3 bg-gradient-to-t from-black/60 to-transparent">
+              {/* Bottom status & controls */}
+              <div className="absolute left-0 right-0 bottom-0 p-4 flex items-center justify-between gap-3 bg-gradient-to-t from-black/60 to-transparent">
+                <div className="flex items-center gap-2 text-slate-200 text-sm">
+                  {qrMode ? (
+                    qrContent ? (
+                      <>
+                        <Badge className="bg-emerald-600">QR OK</Badge>
+                        <span>{`QR: ${qrContent.slice(0, 40)}${qrContent.length > 40 ? '...' : ''}`}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Badge variant="destructive">No QR</Badge>
+                        <span>{qrScanning ? 'Đang quét QR...' : 'Bật chế độ quét QR để bắt đầu'}</span>
+                      </>
+                    )
+                  ) : (
+                    <span>Chế độ quét QR đang tắt</span>
+                  )}
+                </div>
                 <Button
                   size="lg"
                   className="bg-emerald-600 hover:bg-emerald-700"
@@ -668,6 +827,20 @@ export default function ARNFTDemo() {
                         setShowModel(true)
                         setAutoCaptured(true)
                         toast({ title: 'Đã chụp', description: 'Ảnh đã được lưu để mint và hiển thị mô hình 3D' })
+                        if (qrContent) {
+                          try {
+                            const parsed = parseQrContent(qrContent)
+                            if (parsed) {
+                              const nextName = (parsed.item || parsed.name) as string | undefined
+                              const nextType = (parsed.type) as string | undefined
+                              const nextSerial = (parsed.serial || parsed.sn) as string | undefined
+                              if (nextName !== undefined) setItemName(nextName)
+                              if (nextType !== undefined) setItemType(nextType)
+                              if (nextSerial !== undefined) setSerialNumber(nextSerial)
+                              toast({ title: 'Đã đọc QR', description: 'Đã điền thông tin từ QR' })
+                            }
+                          } catch {}
+                        }
                       }
                     } finally {
                       setIsCapturing(false)
