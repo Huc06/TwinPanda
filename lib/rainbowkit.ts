@@ -3,7 +3,7 @@ import { mainnet, polygon, optimism, arbitrum, base, sepolia } from 'wagmi/chain
 
 export const config = getDefaultConfig({
   appName: 'AR NFT RWA Demo',
-  projectId: 'YOUR_PROJECT_ID', // Get this from https://cloud.walletconnect.com
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo-project-id-12345678', // Get this from https://cloud.walletconnect.com
   chains: [
     // Add U2U Testnet first
     {

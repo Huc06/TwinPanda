@@ -17,11 +17,21 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
-      }
+      };
     }
-    return config
-  },
-  transpilePackages: ['@react-three/fiber', '@react-three/drei', 'three'],
-}
 
-export default nextConfig
+    // Fix for WalletConnect indexedDB SSR issues
+    if (isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        "idb-keyval": false,
+        "indexeddb-shim": false,
+      };
+    }
+
+    return config;
+  },
+  transpilePackages: ["@react-three/fiber", "@react-three/drei", "three"],
+};
+
+export default nextConfig;
