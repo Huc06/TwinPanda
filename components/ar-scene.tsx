@@ -2,15 +2,17 @@
 
 import { useRef } from "react"
 import { useFrame } from "@react-three/fiber"
-import { Text, Box, Sphere, Ring } from "@react-three/drei"
+import { Text, Box, Sphere, Ring, useTexture } from "@react-three/drei"
 import type * as THREE from "three"
 
 interface ARSceneProps {
   isVisible: boolean
   detectionConfidence: number
+  itemName?: string
+  serialNumber?: string
 }
 
-export function ARScene({ isVisible, detectionConfidence }: ARSceneProps) {
+export function ARScene({ isVisible, detectionConfidence, itemName, serialNumber }: ARSceneProps) {
   const meshRef = useRef<THREE.Mesh>(null)
   const ringRef = useRef<THREE.Mesh>(null)
 
@@ -58,7 +60,7 @@ export function ARScene({ isVisible, detectionConfidence }: ARSceneProps) {
 
       {/* Info text with confidence */}
       <Text position={[0, 1.8, 0]} fontSize={0.2} color={glowColor} anchorX="center" anchorY="middle">
-        RWA Detected: Luxury Watch
+        RWA Detected: {itemName || "Item"}
       </Text>
 
       <Text position={[0, 1.5, 0]} fontSize={0.15} color="#ffffff" anchorX="center" anchorY="middle">
@@ -66,7 +68,7 @@ export function ARScene({ isVisible, detectionConfidence }: ARSceneProps) {
       </Text>
 
       <Text position={[0, -1.5, 0]} fontSize={0.15} color="#ffffff" anchorX="center" anchorY="middle">
-        Serial: LW-2024-001
+        Serial: {serialNumber || "N/A"}
       </Text>
 
       <Text position={[0, -1.8, 0]} fontSize={0.12} color="#cccccc" anchorX="center" anchorY="middle">
@@ -126,6 +128,33 @@ export function WatchModel({ isDetected }: { isDetected: boolean }) {
       </Box>
       <Box args={[0.02, 0.3, 0.01]} position={[0, 0.15, 0.13]} rotation={[0, 0, -Math.PI / 6]}>
         <meshStandardMaterial color="#ffffff" />
+      </Box>
+    </group>
+  )
+}
+
+export function PhotoModel({ imageUrl, isVisible }: { imageUrl: string; isVisible: boolean }) {
+  if (!isVisible || !imageUrl) return null
+
+  const texture = useTexture(imageUrl)
+
+  // Default plane size; preserve aspect ratio if available
+  const imageWidth = (texture as any)?.image?.width || 1280
+  const imageHeight = (texture as any)?.image?.height || 720
+  const baseWidth = 2.5
+  const aspect = imageHeight > 0 ? imageWidth / imageHeight : 16 / 9
+  const width = baseWidth
+  const height = baseWidth / aspect
+
+  return (
+    <group>
+      <mesh position={[0, 0, 0]}>
+        <planeGeometry args={[width, height]} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
+      </mesh>
+      {/* Thin frame */}
+      <Box args={[width + 0.1, height + 0.1, 0.02]} position={[0, 0, -0.02]}>
+        <meshBasicMaterial color="#222222" transparent opacity={0.6} />
       </Box>
     </group>
   )
