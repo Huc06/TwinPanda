@@ -1,150 +1,74 @@
 "use client";
 
-import { useAuth } from "@/contexts/auth-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatsCard } from "@/components/ui/stats-card";
+import { PageLayout } from "@/components/layout/page-layout";
+import { PageHeader } from "@/components/layout/page-header";
+import { AuthGuard } from "@/components/layout/auth-guard";
 import {
   Store,
-  ArrowLeft,
   TrendingUp,
   Users,
   DollarSign,
   Package,
   Settings,
-  AlertTriangle,
 } from "lucide-react";
-import Link from "next/link";
+import { ShopStats } from "@/types/common";
 
 export default function ShopPage() {
-  const { user, isAuthenticated, isLoading, hasRole } = useAuth();
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <h1 className="text-3xl font-bold text-white mb-4">
-              Authentication Required
-            </h1>
-            {isLoading ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                <p className="text-slate-300">
-                  Please sign the message in your wallet to authenticate...
-                </p>
-              </div>
-            ) : (
-              <p className="text-slate-300 mb-8">
-                Please connect your wallet using the navbar to access shop
-                management
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasRole(["shop", "admin"])) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <AlertTriangle className="w-16 h-16 mx-auto text-yellow-400 mb-6" />
-            <h1 className="text-3xl font-bold text-white mb-4">
-              Access Denied
-            </h1>
-            <p className="text-slate-300 mb-8">
-              You need shop owner privileges to access this page
-            </p>
-            <Link href="/dashboard">
-              <Button variant="outline">Back to Dashboard</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Mock data - replace with real data from your backend
+  const shopStats: ShopStats = {
+    assets: 0,
+    loans: 0,
+    customers: 0,
+    revenue: 0,
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm" className="text-white">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
+    <AuthGuard roles={["shop", "admin"]}>
+      <PageLayout>
+        <PageHeader
+          title="Shop Management"
+          description="Manage your pawn shop operations and asset appraisals"
+          icon={<Store className="w-8 h-8" />}
+          backHref="/dashboard"
+          backLabel="Back to Dashboard"
+          actions={
+            <Button className="bg-purple-600 hover:bg-purple-700">
+              <Settings className="w-4 h-4 mr-2" />
+              Shop Settings
             </Button>
-          </Link>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-              <Store className="w-8 h-8" />
-              Shop Management
-            </h1>
-            <p className="text-slate-300">
-              Manage your pawn shop operations and asset appraisals
-            </p>
-          </div>
-          <Button className="bg-purple-600 hover:bg-purple-700">
-            <Settings className="w-4 h-4 mr-2" />
-            Shop Settings
-          </Button>
-        </div>
+          }
+        />
 
         {/* Shop Overview */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Assets
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">0</div>
-              <p className="text-slate-300 text-sm">Items under evaluation</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <DollarSign className="w-5 h-5" />
-                Loans
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">$0</div>
-              <p className="text-slate-300 text-sm">Active loan value</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Customers
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">0</div>
-              <p className="text-slate-300 text-sm">Active customers</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Revenue
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-400 mb-2">$0</div>
-              <p className="text-slate-300 text-sm">This month</p>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Assets"
+            value={shopStats.assets}
+            description="Items under evaluation"
+            icon={<Package className="w-5 h-5" />}
+          />
+          <StatsCard
+            title="Loans"
+            value={`$${shopStats.loans}`}
+            description="Active loan value"
+            icon={<DollarSign className="w-5 h-5" />}
+          />
+          <StatsCard
+            title="Customers"
+            value={shopStats.customers}
+            description="Active customers"
+            icon={<Users className="w-5 h-5" />}
+          />
+          <StatsCard
+            title="Revenue"
+            value={`$${shopStats.revenue}`}
+            description="This month"
+            icon={<TrendingUp className="w-5 h-5" />}
+            valueColor="text-green-400"
+          />
         </div>
 
         {/* Main Features */}
@@ -225,7 +149,7 @@ export default function ShopPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </PageLayout>
+    </AuthGuard>
   );
 }

@@ -430,12 +430,6 @@ export default function ARScanPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm" className="text-white">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
           <div>
             <h1 className="text-3xl font-bold text-white">AR Asset Scanner</h1>
             <p className="text-slate-300">

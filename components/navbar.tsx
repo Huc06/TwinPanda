@@ -27,43 +27,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-  roles?: string[];
-}
-
-const navItems: NavItem[] = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: <Home className="w-4 h-4" />,
-  },
-  {
-    label: "AR Scan",
-    href: "/ar-scan",
-    icon: <Camera className="w-4 h-4" />,
-  },
-  {
-    label: "My Assets",
-    href: "/assets",
-    icon: <ShoppingCart className="w-4 h-4" />,
-  },
-  {
-    label: "Shop Management",
-    href: "/shop",
-    icon: <Store className="w-4 h-4" />,
-    roles: ["shop", "admin"],
-  },
-  {
-    label: "Analytics",
-    href: "/analytics",
-    icon: <TrendingUp className="w-4 h-4" />,
-    roles: ["shop", "admin"],
-  },
-];
+import { NAV_ITEMS } from "@/constants/navigation";
+import { formatAddress } from "@/utils/formatters";
+import { APP_CONFIG } from "@/constants/app";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -74,7 +40,7 @@ export function Navbar() {
 
   const userRole = user?.role || "user";
 
-  const filteredNavItems = navItems.filter(
+  const filteredNavItems = NAV_ITEMS.filter(
     (item) =>
       !item.roles || item.roles.includes(userRole) || userRole === "admin"
   );
@@ -93,7 +59,7 @@ export function Navbar() {
             <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
               <Store className="w-5 h-5" />
             </div>
-            <span>PawnShop</span>
+            <span>{APP_CONFIG.name}</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -109,7 +75,7 @@ export function Navbar() {
                     : "text-slate-300 hover:text-white hover:bg-slate-800"
                 )}
               >
-                {item.icon}
+                <item.icon className="w-4 h-4" />
                 <span>{item.label}</span>
               </Link>
             ))}
@@ -126,7 +92,7 @@ export function Navbar() {
                     className="text-white hover:bg-slate-800"
                   >
                     <User className="w-4 h-4 mr-2" />
-                    {address?.slice(0, 6)}...{address?.slice(-4)}
+                    {formatAddress(address || "")}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -199,7 +165,7 @@ export function Navbar() {
                       : "text-slate-300 hover:text-white hover:bg-slate-800"
                   )}
                 >
-                  {item.icon}
+                  <item.icon className="w-4 h-4" />
                   <span>{item.label}</span>
                 </Link>
               ))}
@@ -208,7 +174,7 @@ export function Navbar() {
                 {isAuthenticated ? (
                   <div className="space-y-2">
                     <div className="px-3 py-2 text-sm text-slate-400">
-                      Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
+                      Connected: {formatAddress(address || "")}
                     </div>
                     <Button
                       variant="ghost"

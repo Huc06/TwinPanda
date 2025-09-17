@@ -1,13 +1,16 @@
 "use client";
 
-import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatsCard } from "@/components/ui/stats-card";
+import { PageLayout } from "@/components/layout/page-layout";
+import { PageHeader } from "@/components/layout/page-header";
+import { AuthGuard } from "@/components/layout/auth-guard";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Package,
   Camera,
-  ArrowLeft,
   Plus,
   TrendingUp,
   ExternalLink,
@@ -15,49 +18,15 @@ import {
   DollarSign,
 } from "lucide-react";
 import Link from "next/link";
-
-interface Asset {
-  id: string;
-  name: string;
-  type: string;
-  serialNumber: string;
-  image: string;
-  estimatedValue: number;
-  status: "available" | "collateral" | "inactive";
-  mintDate: string;
-  tokenId: string;
-  transactionHash: string;
-}
+import { Asset } from "@/types/common";
+import { usePortfolioStats } from "@/hooks/use-stats";
+import {
+  formatCurrency,
+  formatDate,
+  getStatusVariant,
+} from "@/utils/formatters";
 
 export default function AssetsPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <h1 className="text-3xl font-bold text-white mb-4">
-              {isLoading ? "Authenticating..." : "Authentication Required"}
-            </h1>
-            {isLoading ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                <p className="text-slate-300">
-                  Please sign the message in your wallet to authenticate...
-                </p>
-              </div>
-            ) : (
-              <p className="text-slate-300 mb-8">
-                Please connect your wallet using the navbar to view your assets
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Mock asset data - this will come from your backend/blockchain in the future
   const assets: Asset[] = [
     // Example asset structure for when data is available
@@ -75,106 +44,64 @@ export default function AssetsPage() {
     // }
   ];
 
+  const portfolioStats = usePortfolioStats(assets);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-white">
-              My Asset Portfolio
-            </h1>
-            <p className="text-slate-300">
-              Manage your tokenized real-world assets
-            </p>
-          </div>
-          <Link href="/ar-scan">
-            <Button className="bg-purple-600 hover:bg-purple-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Asset
-            </Button>
-          </Link>
-        </div>
+    <AuthGuard>
+      <PageLayout>
+        <PageHeader
+          title="My Asset Portfolio"
+          description="Manage your tokenized real-world assets"
+          actions={
+            <Link href="/ar-scan">
+              <Button className="bg-purple-600 hover:bg-purple-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Add New Asset
+              </Button>
+            </Link>
+          }
+        />
 
         {/* Portfolio Overview */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Total Assets
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">
-                {assets.length}
-              </div>
-              <p className="text-slate-300 text-sm">NFT assets in portfolio</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <DollarSign className="w-5 h-5" />
-                Portfolio Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">
-                $
-                {assets
-                  .reduce((sum, asset) => sum + (asset.estimatedValue || 0), 0)
-                  .toLocaleString()}
-              </div>
-              <p className="text-slate-300 text-sm">Total estimated value</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Available Credit
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-400 mb-2">
-                $
-                {Math.floor(
-                  assets.reduce(
-                    (sum, asset) => sum + (asset.estimatedValue || 0),
-                    0
-                  ) * 0.7
-                ).toLocaleString()}
-              </div>
-              <p className="text-slate-300 text-sm">
-                Max loan amount (70% LTV)
-              </p>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Total Assets"
+            value={portfolioStats.totalAssets}
+            description="NFT assets in portfolio"
+            icon={<Package className="w-5 h-5" />}
+          />
+          <StatsCard
+            title="Portfolio Value"
+            value={formatCurrency(portfolioStats.portfolioValue)}
+            description="Total estimated value"
+            icon={<DollarSign className="w-5 h-5" />}
+          />
+          <StatsCard
+            title="Available Credit"
+            value={formatCurrency(portfolioStats.availableCredit)}
+            description="Max loan amount (70% LTV)"
+            icon={<TrendingUp className="w-5 h-5" />}
+            valueColor="text-green-400"
+          />
         </div>
 
         {/* Assets Grid */}
         {assets.length === 0 ? (
           <Card className="bg-slate-800/50 border-slate-700">
             <CardContent className="py-16">
-              <div className="text-center">
-                <Package className="w-16 h-16 mx-auto text-slate-600 mb-6" />
-                <h3 className="text-xl font-semibold text-white mb-2">
-                  No Assets Yet
-                </h3>
-                <p className="text-slate-400 mb-6 max-w-md mx-auto">
-                  Start building your asset portfolio by scanning and tokenizing
-                  your first real-world asset
-                </p>
-                <Link href="/ar-scan">
-                  <Button className="bg-purple-600 hover:bg-purple-700">
-                    <Camera className="w-4 h-4 mr-2" />
-                    Scan Your First Asset
-                  </Button>
-                </Link>
-              </div>
+              <EmptyState
+                icon={<Package className="w-16 h-16 text-slate-600" />}
+                title="No Assets Yet"
+                description="Start building your asset portfolio by scanning and tokenizing your first real-world asset"
+                action={
+                  <Link href="/ar-scan">
+                    <Button className="bg-purple-600 hover:bg-purple-700">
+                      <Camera className="w-4 h-4 mr-2" />
+                      Scan Your First Asset
+                    </Button>
+                  </Link>
+                }
+              />
             </CardContent>
           </Card>
         ) : (
@@ -201,13 +128,7 @@ export default function AssetsPage() {
                     </div>
                     <Badge
                       variant="secondary"
-                      className={
-                        asset.status === "available"
-                          ? "bg-green-600"
-                          : asset.status === "collateral"
-                          ? "bg-yellow-600"
-                          : "bg-slate-600"
-                      }
+                      className={getStatusVariant(asset.status)}
                     >
                       {asset.status}
                     </Badge>
@@ -222,7 +143,7 @@ export default function AssetsPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-400">Estimated Value:</span>
                       <span className="text-white font-semibold">
-                        ${asset.estimatedValue.toLocaleString()}
+                        {formatCurrency(asset.estimatedValue)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -232,7 +153,7 @@ export default function AssetsPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-400">Mint Date:</span>
                       <span className="text-white">
-                        {new Date(asset.mintDate).toLocaleDateString()}
+                        {formatDate(asset.mintDate)}
                       </span>
                     </div>
 
@@ -266,7 +187,7 @@ export default function AssetsPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </PageLayout>
+    </AuthGuard>
   );
 }
