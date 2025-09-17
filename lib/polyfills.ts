@@ -1,32 +1,36 @@
 // Polyfills for server-side rendering
 if (typeof window === 'undefined') {
-  // Mock indexedDB for server-side rendering
-  global.indexedDB = {
-    open: () => ({
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      result: {
-        createObjectStore: () => ({}),
-        transaction: () => ({
-          objectStore: () => ({
-            get: () => ({ addEventListener: () => {} }),
-            put: () => ({ addEventListener: () => {} }),
-            delete: () => ({ addEventListener: () => {} }),
-            clear: () => ({ addEventListener: () => {} }),
+  // Only mock if not already defined (prevents conflicts with WalletConnect)
+  if (!global.indexedDB) {
+    global.indexedDB = {
+      open: () => ({
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        result: {
+          createObjectStore: () => ({}),
+          transaction: () => ({
+            objectStore: () => ({
+              get: () => ({ addEventListener: () => {} }),
+              put: () => ({ addEventListener: () => {} }),
+              delete: () => ({ addEventListener: () => {} }),
+              clear: () => ({ addEventListener: () => {} }),
+            }),
           }),
-        }),
-      },
-    }),
-    deleteDatabase: () => {},
-  } as any;
+        },
+      }),
+      deleteDatabase: () => {},
+    } as any;
+  }
 
-  // Mock IDBKeyRange
-  global.IDBKeyRange = {
-    bound: () => ({}),
-    only: () => ({}),
-    lowerBound: () => ({}),
-    upperBound: () => ({}),
-  } as any;
+  // Mock IDBKeyRange only if not defined
+  if (!global.IDBKeyRange) {
+    global.IDBKeyRange = {
+      bound: () => ({}),
+      only: () => ({}),
+      lowerBound: () => ({}),
+      upperBound: () => ({}),
+    } as any;
+  }
 
   // Mock crypto.subtle if not available
   if (typeof global.crypto === 'undefined') {

@@ -9,6 +9,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Disable React Strict Mode to prevent double initialization in development
+  reactStrictMode: false,
+
   webpack: (config, { isServer }) => {
     // Handle React Three Fiber on the client side
     if (!isServer) {
@@ -17,6 +20,8 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
+        stream: false,
+        buffer: false,
       };
     }
 
@@ -26,7 +31,14 @@ const nextConfig = {
         ...config.resolve.fallback,
         "idb-keyval": false,
         "indexeddb-shim": false,
+        encoding: false,
       };
+    }
+
+    // Optimize for WalletConnect
+    config.externals = config.externals || [];
+    if (isServer) {
+      config.externals.push("pino-pretty", "lokijs", "encoding");
     }
 
     return config;
