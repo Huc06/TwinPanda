@@ -6,6 +6,7 @@ import { WagmiProvider } from "wagmi";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { config } from "@/lib/rainbowkit";
 import { preventDoubleInitialization } from "@/lib/walletconnect-utils";
+import { AuthProvider } from "@/contexts/auth-context";
 import "@rainbow-me/rainbowkit/styles.css";
 
 // Create QueryClient outside component to prevent re-initialization
@@ -51,7 +52,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           initialChain={2484} // Set U2U Testnet as initial chain
           showRecentTransactions={true}
         >
-          {children}
+          <AuthProvider>{children}</AuthProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
