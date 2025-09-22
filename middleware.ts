@@ -6,13 +6,8 @@ export async function middleware(request: NextRequest) {
   const response = await updateSession(request)
 
   // Redirect root path to appropriate destination
-  if (request.nextUrl.pathname === '/') {
-    // Try to infer auth state from cookies via a lightweight check
-    // We cannot call supabase here again reliably, so redirect to dashboard by default
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
-  }
+  // Note: previously redirected '/' -> '/dashboard'.
+  // Remove forced redirect so the homepage (app/page.tsx) can render.
 
   return response
 }
