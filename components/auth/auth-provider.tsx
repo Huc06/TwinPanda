@@ -25,14 +25,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
       
       if (session?.user) {
-        // Fetch user profile
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-        
-        setProfile(profile)
+        // Fetch user profile (graceful if table missing)
+        try {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+          setProfile(profile)
+        } catch {
+          setProfile(null)
+        }
       }
       
       setLoading(false)
@@ -46,14 +49,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          // Fetch user profile
-          const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-          
-          setProfile(profile)
+          // Fetch user profile (graceful if table missing)
+          try {
+            const { data: profile } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
+            setProfile(profile)
+          } catch {
+            setProfile(null)
+          }
         } else {
           setProfile(null)
         }

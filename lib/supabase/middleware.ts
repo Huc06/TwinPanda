@@ -48,11 +48,17 @@ export async function updateSession(request: NextRequest) {
 
   // Role-based access control
   if (user) {
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    let profile: { role?: string } | null = null
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      if (!error) profile = data
+    } catch {
+      // Likely the table hasn't been created yet; skip role checks gracefully
+    }
 
     // Shop routes - only for shop users
     if (request.nextUrl.pathname.startsWith('/shop') && profile?.role !== 'shop') {

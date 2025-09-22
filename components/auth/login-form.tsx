@@ -30,6 +30,7 @@ export function LoginForm({ defaultRole = 'user' }: LoginFormProps) {
   const [shopLicense, setShopLicense] = useState('')
   
   const router = useRouter()
+  const [notice, setNotice] = useState('')
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,25 +58,25 @@ export function LoginForm({ defaultRole = 'user' }: LoginFormProps) {
         if (error) throw error
         
         if (data.user) {
-          // Create user profile
-          const profileData = {
-            id: data.user.id,
-            email: data.user.email!,
-            role,
-            full_name: fullName || null,
-            phone: phone || null,
-            shop_name: role === 'shop' ? shopName || null : null,
-            shop_license: role === 'shop' ? shopLicense || null : null,
+          // Create user profile (skip if table missing, user can retry later)
+          try {
+            const profileData = {
+              id: data.user.id,
+              email: data.user.email!,
+              role,
+              full_name: fullName || null,
+              phone: phone || null,
+              shop_name: role === 'shop' ? shopName || null : null,
+              shop_license: role === 'shop' ? shopLicense || null : null,
+            }
+            await supabase.from('users').insert([profileData])
+          } catch {}
+          // If session is created immediately → redirect, else ask for email confirmation
+          if (data.session) {
+            router.push('/dashboard')
+          } else {
+            setNotice('Đăng ký thành công. Vui lòng kiểm tra email để xác nhận tài khoản, sau đó đăng nhập.')
           }
-          
-          const { error: profileError } = await supabase
-            .from('users')
-            .insert([profileData])
-          
-          if (profileError) throw profileError
-          
-          // Redirect to dashboard
-          router.push('/dashboard')
         }
       }
     } catch (error: any) {
@@ -110,6 +111,12 @@ export function LoginForm({ defaultRole = 'user' }: LoginFormProps) {
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {notice && (
+            <Alert className="mb-4 bg-emerald-600/20 border-emerald-600/50">
+              <AlertDescription className="text-emerald-200">{notice}</AlertDescription>
             </Alert>
           )}
 
